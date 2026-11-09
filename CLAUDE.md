@@ -3,128 +3,107 @@
 > **Git policy — never auto-commit or auto-push.** Leave your work in the working tree.
 > Run `git commit`, `git push`, `gh pr create`, or `scripts/push_all.sh` **only when the user
 > explicitly asks in that turn**. Approval for an earlier change does not carry forward, and
-> finishing a task is not permission to commit it.
+> finishing a task is not permission to commit it. Stay on the current branch; do not create
+> feature branches for code changes.
 
-## Project Overview
+## What this is
 
-`@sudobility/whisperly_types` is the shared TypeScript types library for the Whisperly localization SaaS platform. It defines all interfaces, request/response types, and helper functions consumed by all other whisperly packages (whisperly_api, whisperly_client, whisperly_lib, whisperly_app).
+`@sudobility/whisperly_types` is the shared TypeScript types library for the
+Whisperly localization SaaS platform. It defines the interfaces, request/response
+types, and the `successResponse`/`errorResponse` helpers consumed by the other
+whisperly packages (whisperly_api, whisperly_client, whisperly_lib, whisperly_app).
 
-**Platform**: Universal (Web, React Native, Backend) — dual ESM/CJS output, zero runtime dependencies.
+- **Types-only + two tiny helpers.** The only runtime JS is `successResponse` /
+  `errorResponse`; everything else erases at compile time. Zero runtime deps.
+- **ESM-only output.** Package is `"type": "module"`; build emits `dist/index.js`,
+  `dist/index.d.ts` (+ source/declaration maps). There is **no CJS build** and no
+  `require` export, despite older notes that mentioned one.
+- **Single source file:** `src/index.ts`. Tests in `src/__tests__/`.
 
-## Package Manager
+## Stack / tooling
 
-**Bun** (not npm/yarn): `bun install`, `bun run <script>`, `bun add <package>`
+- **Bun** is the package manager and runner (not npm/yarn): `bun install`,
+  `bun run <script>`, `bun add <pkg>`.
+- TypeScript 5.9 (strict), ESLint 9 + Prettier, Vitest 4.
 
-## Project Structure
-
-```
-src/
-├── index.ts              # All type definitions and helper functions (single file)
-└── __tests__/
-    ├── index.test.ts     # Response helper function tests
-    └── types.test.ts     # Type shape validation tests
-```
-
-## Key Scripts
+## Commands (verified)
 
 ```bash
-bun run build        # Build ESM + CJS to dist/
-bun run typecheck    # TypeScript type checking
-bun run lint         # ESLint
-bun run test:run     # Run tests once
-bun run verify       # typecheck + lint + test + build (use before committing)
+bun run build        # tsc -p tsconfig.esm.json → dist/ (ESM + .d.ts)
+bun run typecheck    # tsc --noEmit
+bun run lint         # eslint src/   (lint:fix to autofix)
+bun run format       # prettier --write src/**/*.ts  (format:check to verify)
+bun run test:run     # vitest run  (alias: test:unit)
+bun run dev          # tsc --watch
+bun run verify       # typecheck + lint + test:unit + build — run before publishing
 ```
 
-## Type Organization (in index.ts)
+`prepublishOnly` runs `clean && verify`.
 
-All types are in a single file, organized by section:
+## Packaging / distribution gotcha
 
-### 1. Re-exports from @sudobility/types
-`ApiResponse`, `BaseResponse`, `NetworkClient`, `Optional`, `PaginatedResponse`, `PaginationInfo`, `PaginationOptions`
+- Published to **GitHub Packages**, NOT the public npm registry. `.npmrc` sets
+  `@sudobility:registry=https://npm.pkg.github.com`. Installing (here or in any
+  consumer) needs a GitHub token with `read:packages`; CI passes it as the
+  `GH_PACKAGES_READ_TOKEN` secret.
+- CI/CD (`.github/workflows/ci-cd.yml`) delegates to the reusable
+  `johnqh/workflows` unified workflow with `publish-target: github`; it publishes
+  on push to `main`/`develop`.
+- `@sudobility/types` is a **peer dependency** (`^1.9.78`), also a devDependency
+  so local builds/tests resolve it.
 
-### 2. Entity Types (database models)
-| Type | Key Fields | Notes |
-|------|-----------|-------|
-| `User` | firebase_uid, email, display_name | PK is firebase_uid |
-| `UserSettings` | firebase_uid, organization_path | Legacy personal org paths |
-| `Project` | id, entity_id, project_name, display_name, api_key, ip_allowlist | Entity-scoped |
-| `Dictionary` | id, entity_id, project_id | Container for entries |
-| `DictionaryEntry` | id, dictionary_id, language_code, text | Individual translation |
-| `DictionaryTranslations` | `Record<string, string>` | Flattened `{ "en": "hello", "es": "hola" }` |
-| `UsageRecord` | uuid, entity_id, project_id, request_count, character_count | Analytics tracking |
+## Architecture (all in src/index.ts, section-commented)
 
-### 3. Request Types
-- `UserCreateRequest`, `UserUpdateRequest`
-- `UserSettingsUpdateRequest`
-- `ProjectCreateRequest`, `ProjectUpdateRequest`
-- `DictionaryCreateRequest`, `DictionaryUpdateRequest` — both are `DictionaryTranslations` (direct `{ lang: text }` payload)
-
-### 4. Query Parameter Types
-- `ProjectQueryParams` — `is_active` filter
-- `UsageAnalyticsQueryParams` — `project_id`, `start_date`, `end_date`, `success` filters
-
-### 5. Translation API Types
-- `TranslationRequest` — `strings[]`, `target_languages[]`, optional `source_language`, `skip_dictionaries`
-- `TranslationResponse` — `translations: Record<lang, string[]>`, `dictionary_terms_used[]`, `request_id`
-
-### 6. Dictionary Callback Types
-- `DictionaryLookupRequest` — `term`, `languages` (for translation service GET callback)
-- `DictionaryLookupResponse` — `term`, `translations: Record<lang, string | null>`
-
-### 7. Dictionary Search
-- `DictionarySearchResponse` — `dictionary_id`, `translations: DictionaryTranslations`
-
-### 8. Analytics Types
-- `UsageAggregate` — totals, success rate, period range
-- `UsageByProject` — per-project breakdown
-- `UsageByDate` — daily breakdown
-- `AnalyticsResponse` — composite of all three
-
-### 9. Project Languages
-- `AvailableLanguage` — `language_code`, `language`, `flag`
-- `ProjectLanguagesResponse` — `project_id`, `languages` (comma-separated string)
-
-### 10. Rate Limit Types
-- `RateLimitStatus` — tier, monthly/hourly limits+used+remaining, resets_at
-
-### 11. Translation Service Types (internal)
-- `TranslationServicePayload` — payload for external translation service
-- `TranslationServiceResponse` — response from external translation service
-
-### 12. Response Helpers
-- `successResponse<T>(data)` → `BaseResponse<T>` with `success: true`
-- `errorResponse(error)` → `BaseResponse<never>` with `success: false`
-
-### 13. Response Type Aliases
-`ProjectListResponse`, `ProjectResponse`, `UserSettingsResponse`, `RateLimitResponse`, `DictionaryResponse`, `DictionarySearchApiResponse`, `DictionaryLookupApiResponse`, `AnalyticsApiResponse`, `TranslationApiResponse`, `AvailableLanguagesApiResponse`, `ProjectLanguagesApiResponse`, `HealthCheckResponse`
+1. **Re-exports from `@sudobility/types`** — `ApiResponse`, `BaseResponse`,
+   `NetworkClient`, `Optional`, `PaginatedResponse`, `PaginationInfo`,
+   `PaginationOptions`, and the canonical rate-limit types (`RateLimits`,
+   `RateLimitTier`, `RateLimitResets`, `RateLimitsConfigData`, `RateLimitUsage`,
+   `RateLimitsConfigResponse`, `RateLimitHistoryEntry`, `RateLimitHistoryData`,
+   `RateLimitHistoryResponse`) plus the value enum `RateLimitPeriodType`.
+   Rate-limit shapes live in `@sudobility/types`; this package does not define them.
+2. **`ISODateString`** — alias for `string`, documents ISO-8601 date/datetime fields.
+3. **Entity types** (DB models) — `User`, `UserSettings`, `Project`, `Dictionary`,
+   `DictionaryEntry`, `UsageRecord`, and `DictionaryTranslations`
+   (`Record<string, string>`, flattened `{ lang: text }`).
+4. **Request body types** — `UserCreateRequest`, `UserUpdateRequest`,
+   `UserSettingsUpdateRequest`, `ProjectCreateRequest`, `ProjectUpdateRequest`,
+   `DictionaryCreateRequest`/`DictionaryUpdateRequest` (both ARE
+   `DictionaryTranslations` — a direct `{ lang: text }` payload, not enveloped).
+5. **Query param types** — `ProjectQueryParams`, `UsageAnalyticsQueryParams`
+   (all fields are query-string values, i.e. `"true"`/`"false"`, dates `"YYYY-MM-DD"`).
+6. **Translation API** — `TranslationRequest` (`strings[]`, `target_languages[]`,
+   optional `source_language`, `skip_dictionaries?`), `TranslationResponse`.
+7. **Dictionary callback / search** — `DictionaryLookupRequest`/`Response`,
+   `DictionarySearchResponse`, `DictionaryListItem` (extends search response + timestamps).
+8. **Analytics** — `UsageAggregate`, `UsageByProject`, `UsageByDate`, `AnalyticsResponse`.
+9. **Project languages** — `AvailableLanguage`, `ProjectLanguagesResponse`.
+10. **Translation service (internal)** — `TranslationServicePayload`,
+    `TranslationServiceResponse` (shapes for the external translation service call).
+11. **Response helpers** — `successResponse<T>(data)` → `BaseResponse<T>`
+    (`success: true`, ISO timestamp); `errorResponse(msg)` → `BaseResponse<never>`
+    (`success: false`).
+12. **Response type aliases** — `BaseResponse<T>` wrappers:
+    `ProjectListResponse`, `ProjectResponse`, `UserSettingsResponse`,
+    `DictionaryResponse`, `DictionarySearchApiResponse`, `DictionaryListApiResponse`,
+    `DictionaryLookupApiResponse`, `AnalyticsApiResponse`, `TranslationApiResponse`,
+    `AvailableLanguagesApiResponse`, `ProjectLanguagesApiResponse`,
+    `HealthCheckResponse`.
+13. **Health check** — `HealthCheckData` (`name`, `version`, `status`).
 
 ## Conventions
 
-- Entity types match database schema exactly
-- All dates are `Date | null` in entities
-- Request types use `Optional<T>` from @sudobility/types for optional fields
-- Update requests make all fields `Optional<T>` (partial updates)
-- Response types are wrapped with `BaseResponse<T>`
-- Response naming: `EntityResponse` (single), `EntityListResponse` (array), `*ApiResponse` (special)
+- Entity types mirror the DB schema; timestamps are `Date | null`.
+- Optional request fields use `Optional<T>` from `@sudobility/types`; update
+  requests make fields `Optional<T>` (partial updates), and fields that can be
+  cleared are `Optional<T | null>`.
+- Response naming: `EntityResponse` (single), `EntityListResponse` (array),
+  `*ApiResponse` for composite/special payloads.
+- Serialized date fields on analytics/response types are `ISODateString` (string),
+  not `Date`.
 
-## Adding New Types
+## Adding a type
 
-1. Add interface to `src/index.ts` in the appropriate section
-2. Add response type alias if used in API (e.g., `type FooResponse = BaseResponse<Foo>`)
-3. Add test cases in `src/__tests__/types.test.ts`
-4. Run `bun run verify`
-
-## Dependencies
-
-- `@sudobility/types` — peer dependency providing `BaseResponse`, `Optional`, etc.
-- Zero runtime dependencies
-
-## Build Output
-
-- `dist/index.js` — ESM module
-- `dist/index.cjs` — CommonJS module
-- `dist/index.d.ts` — TypeScript declarations
-
-## Git Workflow
-
-- Do not use feature branches for code changes. Always stay on the current branch.
+1. Add the interface to the right section of `src/index.ts`.
+2. If it's an API payload, add a `BaseResponse<T>` alias.
+3. Add shape tests in `src/__tests__/types.test.ts`.
+4. Run `bun run verify`.

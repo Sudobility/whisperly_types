@@ -1,12 +1,32 @@
 # @sudobility/whisperly_types
 
-Shared TypeScript type definitions for the Whisperly localization SaaS platform.
+Shared TypeScript type definitions and response helpers for the Whisperly
+localization SaaS platform. Consumed by all other `whisperly_*` packages.
+
+- **Runtime-light**: types erase at compile time; the only runtime exports are
+  the `successResponse` / `errorResponse` helpers.
+- **ESM-only** output (the package is `"type": "module"`).
+- **Platform-agnostic**: usable from Web, React Native, and backend code.
 
 ## Installation
+
+This package is published to **GitHub Packages** (not the public npm registry),
+scoped under `@sudobility`. Consumers need an `.npmrc` that points the scope at
+GitHub Packages and authenticates with a GitHub token that has `read:packages`:
+
+```
+@sudobility:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GH_PACKAGES_READ_TOKEN}
+```
+
+Then install:
 
 ```bash
 bun add @sudobility/whisperly_types
 ```
+
+`@sudobility/types` is a **peer dependency** (`^1.9.78`) and must be installed
+alongside it.
 
 ## Usage
 
@@ -39,10 +59,17 @@ const response = successResponse({ translations: { es: ["Hola"] } });
 
 ## Development
 
+Uses **Bun** as the package manager/runner.
+
 ```bash
-bun run build        # Dual CJS + ESM build
-bun run test:run     # Run tests once
-bun run verify       # All checks + build
+bun install          # Install dependencies
+bun run build        # Compile ESM output + .d.ts to dist/
+bun run typecheck    # tsc --noEmit
+bun run lint         # ESLint (bun run lint:fix to autofix)
+bun run format       # Prettier write (format:check to verify)
+bun run test:run     # Run tests once with Vitest
+bun run dev          # tsc --watch
+bun run verify       # typecheck + lint + test + build (run before publishing)
 ```
 
 ## Related Packages
