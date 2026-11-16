@@ -22,11 +22,21 @@ export type {
   RateLimitHistoryEntry,
   RateLimitHistoryData,
   RateLimitHistoryResponse,
+  // Generic response/health types (canonical definitions in @sudobility/types)
+  ApiInfoResponse,
+  HealthResponse,
+  HealthCheckData,
 } from '@sudobility/types';
 
 export { RateLimitPeriodType } from '@sudobility/types';
+// Response constructors are the canonical ones from @sudobility/types.
+export { successResponse, errorResponse } from '@sudobility/types';
 
-import type { Optional, BaseResponse } from '@sudobility/types';
+import type {
+  Optional,
+  BaseResponse,
+  HealthCheckData,
+} from '@sudobility/types';
 
 // =============================================================================
 // Date Type Aliases
@@ -585,34 +595,8 @@ export interface TranslationServiceResponse {
 // Response Helper Functions
 // =============================================================================
 
-/**
- * Create a standardized success response wrapping the given data.
- *
- * @template T - The type of the response data
- * @param data - The response payload
- * @returns A {@link BaseResponse} with `success: true` and an ISO 8601 timestamp
- */
-export function successResponse<T>(data: T): BaseResponse<T> {
-  return {
-    success: true,
-    data,
-    timestamp: new Date().toISOString(),
-  };
-}
-
-/**
- * Create a standardized error response with the given error message.
- *
- * @param error - A human-readable error message describing what went wrong
- * @returns A {@link BaseResponse} with `success: false` and an ISO 8601 timestamp
- */
-export function errorResponse(error: string): BaseResponse<never> {
-  return {
-    success: false,
-    error,
-    timestamp: new Date().toISOString(),
-  };
-}
+// `successResponse` / `errorResponse` are the canonical constructors from
+// `@sudobility/types`, re-exported at the top of this file — not defined here.
 
 // =============================================================================
 // API Response Type Aliases (for FE client convenience)
@@ -658,17 +642,6 @@ export type ProjectLanguagesApiResponse =
 export type HealthCheckResponse = BaseResponse<HealthCheckData>;
 
 // =============================================================================
-// Health check response
+// Health check response — `HealthCheckData` is the generic payload from
+// @sudobility/types ({ status, version }), re-exported at the top of this file.
 // =============================================================================
-
-/**
- * Health check endpoint data indicating API status.
- */
-export interface HealthCheckData {
-  /** The API service name (e.g., "whisperly-api"). */
-  name: string;
-  /** The API version string (e.g., "1.0.0"). */
-  version: string;
-  /** Current health status (e.g., "healthy", "degraded", "unhealthy"). */
-  status: string;
-}

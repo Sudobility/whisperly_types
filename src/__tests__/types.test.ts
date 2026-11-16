@@ -624,12 +624,11 @@ describe('Health Check Types', () => {
   describe('HealthCheckData', () => {
     it('has correct shape', () => {
       const data: HealthCheckData = {
-        name: 'whisperly-api',
         version: '1.0.0',
         status: 'healthy',
       };
 
-      expect(data.name).toBe('whisperly-api');
+      expect(data.version).toBe('1.0.0');
       expect(data.status).toBe('healthy');
     });
   });
